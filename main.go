@@ -1,9 +1,11 @@
 package main
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"github.com/go-resty/resty/v2"
+	_ "github.com/mattn/go-sqlite3"
 	"log"
 	"strconv"
 )
@@ -64,23 +66,54 @@ type hosDetailResp struct {
 	} `json:"data"`
 }
 
+type hpvScheduleResp struct {
+	Code int    `json:"code"`
+	Msg  string `json:"msg"`
+	Data []struct {
+		ScheduleId int    `json:"schedule_id"`
+		TimeType   string `json:"time_type"`
+		SchDate    string `json:"sch_date"`
+		SrcMax     int    `json:"src_max"`
+		SrcNum     int    `json:"src_num"`
+		CateName   string `json:"cate_name"`
+		Ghf        int    `json:"ghf"`
+		Zlf        int    `json:"zlf"`
+		Zjf        int    `json:"zjf"`
+		Amt        int    `json:"amt"`
+		DocId      string `json:"doc_id"`
+		IsDatepart int    `json:"is_datepart"`
+	} `json:"data"`
+}
+
 func main() {
+	// Initialize DB to storage HosDetail
+	db, err := sql.Open("sqlite3", "file:hpv.db?mode=memory")
+	_, err = db.Exec("CREATE TABLE hos_detail(hos_name VARCHAR(1024), doc_name VARCHAR(1024), doc_good VARCHAR(1024), hos_id VARCHAR(32), doc_id VARCHAR(32), dep_id VARCHAR(32))")
+	if err != nil {
+		log.Fatalln(err.Error())
+	}
+
 	h, err := getHosList()
 	if err != nil {
 		log.Fatalln(err.Error())
-		return
 	}
 
 	for _, d := range h.Data {
 		for _, doctor := range d.Doctor {
-			_, err = getHosDetailList(strconv.Itoa(doctor.DocId), strconv.Itoa(d.HosCode), strconv.Itoa(doctor.DepId))
+			// Catch all hpv programme
+			_, err = getHosDetail(db, strconv.Itoa(doctor.DocId), strconv.Itoa(d.HosCode), strconv.Itoa(doctor.DepId))
+
+			// Catch hpv remaining
+			_, err = getHpvSchedule(db, strconv.Itoa(doctor.DocId), strconv.Itoa(d.HosCode), strconv.Itoa(doctor.DepId))
+
 			if err != nil {
 				log.Fatalln(err.Error())
-				return
 			}
 		}
 	}
 
+	db.Close()
+	return
 }
 
 func getHosList() (h hosResp, err error) {
@@ -99,7 +132,7 @@ func getHosList() (h hosResp, err error) {
 	return
 }
 
-func getHosDetailList(docId string, hosCode string, depId string) (hd hosDetailResp, err error) {
+func getHosDetail(db *sql.DB, docId string, hosCode string, depId string) (hd hosDetailResp, err error) {
 	client := resty.New()
 	resp, err := client.R().
 		SetHeaders(map[string]string{
@@ -114,7 +147,7 @@ func getHosDetailList(docId string, hosCode string, depId string) (hd hosDetailR
 			"Content-Type":    "text/plain",
 		}).
 		Get(DytApiHost + "index/doctor/" + docId + "?hos_code=" + hosCode + "&dep_id=" + depId + "&vip=0")
-	// 2713, ¬872003, 752
+	// Such as: 2713, 872003, 752
 
 	if err != nil {
 		return
@@ -127,6 +160,63 @@ func getHosDetailList(docId string, hosCode string, depId string) (hd hosDetailR
 		return
 	}
 
-	fmt.Printf("%v:\t%v\n", hd.Data.HosName, hd.Data.DocName)
+	_, err = db.Exec(fmt.Sprintf("INSERT INTO hos_detail VALUES('%v', '%v', '%v', '%v', '%v', '%v')", hd.Data.HosName, hd.Data.DocName, hd.Data.DocGood, hd.Data.HosId, hd.Data.DocId, hd.Data.DepId))
+	if err != nil {
+		panic(err)
+	}
+
+	// fmt.Printf("%v:\t%v\n", hd.Data.HosName, hd.Data.DocName)
+	return
+}
+
+func getHpvSchedule(db *sql.DB, docId string, hosCode string, depId string) (hs hpvScheduleResp, err error) {
+	client := resty.New()
+	resp, err := client.R().
+		SetHeaders(map[string]string{
+			"Host":            "newdytapi.ynhdkc.com",
+			"Origin":          "https://appv2.ynhdkc.com",
+			"Accept-Encoding": "gzip, deflate, br",
+			"Connection":      "keep-alive",
+			"Accept":          "application/json, text/plain, */*",
+			"User-Agent":      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) MicroMessenger/6.8.0(0x16080000) MacWechat/3.4(0x13040010) MiniProgramEnv/Mac MiniProgram",
+			"Referer":         "https://appv2.ynhdkc.com/",
+			"Accept-Language": "zh-CN,zh-Hans;q=0.9",
+			"Content-Type":    "text/plain",
+		}).
+		Get(DytApiHost + "index/schedule?hos_code=" + hosCode + "&dep_id=" + depId + "&doc_id=" + docId + "&hyid=&vip=0")
+
+	if err != nil {
+		return
+	}
+
+	respString := resp.String()
+	err = json.Unmarshal([]byte(respString), &hs)
+
+	if err != nil {
+		return
+	}
+
+	for _, d := range hs.Data {
+		var rows *sql.Rows
+		rows, err = db.Query(fmt.Sprintf("SELECT * FROM hos_detail WHERE doc_id = %v LIMIT 1", d.DocId))
+		var (
+			hosName string
+			docName string
+			docGood string
+			hosId   string
+			docId   string
+			depId   string
+		)
+		for rows.Next() {
+			err := rows.Scan(&docName, &hosName, &docGood, &hosId, &docId, &depId)
+			if err != nil {
+				panic(err)
+			}
+		}
+		rows.Close()
+
+		fmt.Printf("%v\t%v\t%v\t%v\t%v\t%v\n", d.SchDate, d.CateName, docName, hosName, d.SrcMax, d.SrcNum)
+	}
+
 	return
 }
