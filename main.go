@@ -4,18 +4,19 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"github.com/go-resty/resty/v2"
-	_ "github.com/mattn/go-sqlite3"
 	"log"
 	"strconv"
+	"strings"
+
+	"github.com/go-resty/resty/v2"
+	_ "github.com/mattn/go-sqlite3"
 )
 
 const (
 	DytApiHost = "https://dytapi.ynhdkc.com/"
 	KeyWord    = "九价"
 
-	XUUID         = ""
-	Authorization = ""
+	IsAppointment = false
 )
 
 // Response json of hospital list
@@ -90,7 +91,7 @@ func main() {
 	db, err := sql.Open("sqlite3", "file:hpv.db?mode=memory")
 	_, err = db.Exec("CREATE TABLE hos_detail(hos_name VARCHAR(1024), doc_name VARCHAR(1024), doc_good VARCHAR(1024), hos_id VARCHAR(32), doc_id VARCHAR(32), dep_id VARCHAR(32))")
 	if err != nil {
-		log.Fatalln(err.Error())
+		panic(err)
 	}
 
 	h, err := getHosList()
@@ -216,7 +217,37 @@ func getHpvSchedule(db *sql.DB, docId string, hosCode string, depId string) (hs 
 		rows.Close()
 
 		fmt.Printf("%v\t%v\t%v\t%v\t%v\t%v\n", d.SchDate, d.CateName, docName, hosName, d.SrcMax, d.SrcNum)
+
+		if d.SrcNum == 0 && strings.Contains(hosName, KeyWord) {
+			// Todo: Send Email
+
+			if IsAppointment {
+				appointmentHpv()
+			}
+		}
 	}
 
 	return
+}
+
+func appointmentHpv() {
+	client := resty.New()
+	resp, err := client.R().
+		SetHeaders(map[string]string{
+			"Host":            "newdytapi.ynhdkc.com",
+			"Origin":          "https://appv2.ynhdkc.com",
+			"Accept-Encoding": "gzip, deflate, br",
+			"Connection":      "keep-alive",
+			"Accept":          "application/json, text/plain, */*",
+			"User-Agent":      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) MicroMessenger/6.8.0(0x16080000) MacWechat/3.4(0x13040010) MiniProgramEnv/Mac MiniProgram",
+			"Referer":         "https://appv2.ynhdkc.com/",
+			"Accept-Language": "zh-CN,zh-Hans;q=0.9",
+			"Content-Type":    "text/plain",
+		}).
+		Post("")
+	if err != nil {
+		return
+	}
+	respString := resp.String()
+	fmt.Println(respString)
 }
