@@ -27,6 +27,8 @@ const (
 
 	IsAppointment = false
 	IsSending     = true
+
+	IsDebug = true
 )
 
 // Response json of hospital list
@@ -105,41 +107,79 @@ type mailInfo struct {
 	SrcNum   int
 }
 
+type appointResp struct {
+	Code int           `json:"code"`
+	Msg  string        `json:"msg"`
+	Data []interface{} `json:"data"`
+}
+
+type appointBody struct {
+	DocName     string `json:"doc_name"`
+	HosName     string `json:"hos_name"`
+	HosCode     string `json:"hos_code"`
+	DepName     string `json:"dep_name"`
+	LevelName   string `json:"level_name"`
+	DepId       string `json:"dep_id"`
+	DocId       string `json:"doc_id"`
+	PatId       int    `json:"pat_id"`
+	ScheduleId  int    `json:"schedule_id"`
+	JzCard      string `json:"jz_card"`
+	SchDate     string `json:"sch_date"`
+	TimeType    string `json:"time_type"`
+	Info        string `json:"info"`
+	Ghf         int    `json:"ghf"`
+	Zlf         int    `json:"zlf"`
+	Zjf         int    `json:"zjf"`
+	JzStartTime int    `json:"jz_start_time"`
+	Amt         int    `json:"amt"`
+	JzCardType  int    `json:"jz_card_type"`
+	QueueSnId   string `json:"queue_sn_id"`
+	WechatLogin string `json:"wechat_login"`
+}
+
 func main() {
-	log.Println("↓====================↓")
-	// Initialize DB to storage HosDetail
-	db, err := sql.Open("sqlite3", "file:hpv.db?mode=memory")
-	_, err = db.Exec("CREATE TABLE hos_detail(hos_name VARCHAR(1024), doc_name VARCHAR(1024), doc_good VARCHAR(1024), hos_id VARCHAR(32), doc_id VARCHAR(32), dep_id VARCHAR(32))")
-	if err != nil {
-		panic(err)
-	}
+	if !IsDebug {
+		// Main
 
-	h, err := getHosList()
-	if err != nil {
-		log.Fatalln(err.Error())
-	}
+		log.Println("↓====================↓")
+		// Initialize DB to storage HosDetail
+		db, err := sql.Open("sqlite3", "file:hpv.db?mode=memory")
+		_, err = db.Exec("CREATE TABLE hos_detail(hos_name VARCHAR(1024), doc_name VARCHAR(1024), doc_good VARCHAR(1024), hos_id VARCHAR(32), doc_id VARCHAR(32), dep_id VARCHAR(32))")
+		if err != nil {
+			panic(err)
+		}
 
-	// All schedule info of hpv
-	var ms []mailInfo
+		h, err := getHosList()
+		if err != nil {
+			log.Fatalln(err.Error())
+		}
 
-	for _, d := range h.Data {
-		for _, doctor := range d.Doctor {
-			// Catch all hpv programme
-			_, err = getHosDetail(db, strconv.Itoa(doctor.DocId), strconv.Itoa(d.HosCode), strconv.Itoa(doctor.DepId))
+		// All schedule info of hpv
+		var ms []mailInfo
 
-			// Catch hpv remaining
-			var m mailInfo
-			_, m, _, err = getHpvSchedule(db, strconv.Itoa(doctor.DocId), strconv.Itoa(d.HosCode), strconv.Itoa(doctor.DepId))
-			ms = append(ms, m)
+		for _, d := range h.Data {
+			for _, doctor := range d.Doctor {
+				// Catch all hpv programme
+				_, err = getHosDetail(db, strconv.Itoa(doctor.DocId), strconv.Itoa(d.HosCode), strconv.Itoa(doctor.DepId))
 
-			if err != nil {
-				log.Fatalln(err.Error())
+				// Catch hpv remaining
+				var m mailInfo
+				_, m, _, err = getHpvSchedule(db, strconv.Itoa(doctor.DocId), strconv.Itoa(d.HosCode), strconv.Itoa(doctor.DepId))
+				ms = append(ms, m)
+
+				if err != nil {
+					log.Fatalln(err.Error())
+				}
 			}
 		}
+
+		db.Close()
+		log.Println("↑====================↑")
+	} else {
+		// Debug
+
 	}
 
-	db.Close()
-	log.Println("↑====================↑")
 	return
 }
 
@@ -268,7 +308,7 @@ func getHpvSchedule(db *sql.DB, docId string, hosCode string, depId string) (hs 
 
 			// Appointment
 			if IsAppointment {
-				appointmentHpv()
+				// appointHpv()
 			}
 		}
 	}
@@ -276,12 +316,51 @@ func getHpvSchedule(db *sql.DB, docId string, hosCode string, depId string) (hs 
 	return
 }
 
-func appointmentHpv() {
-	// Todo
+func appointHpv(
+	hosCode string,
+	depId string,
+	docId string,
+	patId string,
+	userId string,
+	scheduleId string,
+	cateName string,
+
+	docName string,
+	hosName string,
+	depName string,
+	schDate string,
+	timeType string,
+) (aResp appointResp, err error) {
+	postBody := fmt.Sprintf(`
+{
+  "doc_name": "%v",
+  "hos_name": "%v",
+  "hos_code": "%v",
+  "dep_name": "%v",
+  "level_name": "",
+  "dep_id": "%v",
+  "doc_id": "%v",
+  "pat_id": %v,
+  "schedule_id": %v,
+  "jz_card": "",
+  "sch_date": "%v",
+  "time_type": "%v",
+  "info": "",
+  "ghf": 0,
+  "zlf": 0,
+  "zjf": 0,
+  "jz_start_time": 0,
+  "amt": 0,
+  "jz_card_type": 0,
+  "queue_sn_id": "",
+  "wechat_login": "dytminiapp"
+}
+`, docName, hosName, hosCode, depName, depId, docId, patId, scheduleId, schDate, timeType)
+
 	client := resty.New()
 	resp, err := client.R().
 		SetHeaders(map[string]string{
-			"Host":            "newdytapi.ynhdkc.com",
+			"Host":            "dytapi.ynhdkc.com",
 			"Origin":          "https://appv2.ynhdkc.com",
 			"Accept-Encoding": "gzip, deflate, br",
 			"Connection":      "keep-alive",
@@ -290,13 +369,35 @@ func appointmentHpv() {
 			"Referer":         "https://appv2.ynhdkc.com/",
 			"Accept-Language": "zh-CN,zh-Hans;q=0.9",
 			"Content-Type":    "text/plain",
+
+			"x-uuid":        XUuid,
+			"Authorization": Authorization,
 		}).
-		Post("")
+		SetQueryParams(map[string]string{
+			"hos_code":    hosCode,
+			"dep_id":      depId,
+			"doc_id":      docId,
+			"pat_id":      patId,
+			"user_id":     userId,
+			"schedule_id": scheduleId,
+			"cate_name":   cateName,
+		}).
+		SetBody(postBody).
+		Post(DytApiHost + "v1/appoint")
+
 	if err != nil {
 		return
 	}
+
 	respString := resp.String()
+	err = json.Unmarshal([]byte(respString), &aResp)
+	if err != nil {
+		return
+	}
+
+	fmt.Println(postBody)
 	fmt.Println(respString)
+	return
 }
 
 func sendEmail(subject string, text string) (err error) {
