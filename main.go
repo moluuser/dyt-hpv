@@ -5,18 +5,27 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net/smtp"
 	"strconv"
 	"strings"
 
 	"github.com/go-resty/resty/v2"
+	"github.com/jordan-wright/email"
 	_ "github.com/mattn/go-sqlite3"
 )
 
 const (
-	DytApiHost = "https://dytapi.ynhdkc.com/"
-	KeyWord    = "九价"
+	DytApiHost    = "https://dytapi.ynhdkc.com/"
+	KeyWord       = "九价"
+	XUuid         = ""
+	Authorization = ""
+	EmailUser     = ""
+	EmailPass     = ""
+	EmailTo1      = ""
+	EmailTo2      = ""
 
 	IsAppointment = false
+	IsSending     = true
 )
 
 // Response json of hospital list
@@ -86,7 +95,17 @@ type hpvScheduleResp struct {
 	} `json:"data"`
 }
 
+type mailInfo struct {
+	SchDate  string
+	CateName string
+	docName  string
+	hosName  string
+	SrcMax   int
+	SrcNum   int
+}
+
 func main() {
+	log.Println("↓====================↓")
 	// Initialize DB to storage HosDetail
 	db, err := sql.Open("sqlite3", "file:hpv.db?mode=memory")
 	_, err = db.Exec("CREATE TABLE hos_detail(hos_name VARCHAR(1024), doc_name VARCHAR(1024), doc_good VARCHAR(1024), hos_id VARCHAR(32), doc_id VARCHAR(32), dep_id VARCHAR(32))")
@@ -99,13 +118,17 @@ func main() {
 		log.Fatalln(err.Error())
 	}
 
+	var ms []mailInfo
+
 	for _, d := range h.Data {
 		for _, doctor := range d.Doctor {
 			// Catch all hpv programme
 			_, err = getHosDetail(db, strconv.Itoa(doctor.DocId), strconv.Itoa(d.HosCode), strconv.Itoa(doctor.DepId))
 
 			// Catch hpv remaining
-			_, err = getHpvSchedule(db, strconv.Itoa(doctor.DocId), strconv.Itoa(d.HosCode), strconv.Itoa(doctor.DepId))
+			var m mailInfo
+			_, m, _, err = getHpvSchedule(db, strconv.Itoa(doctor.DocId), strconv.Itoa(d.HosCode), strconv.Itoa(doctor.DepId))
+			ms = append(ms, m)
 
 			if err != nil {
 				log.Fatalln(err.Error())
@@ -114,6 +137,7 @@ func main() {
 	}
 
 	db.Close()
+	log.Println("↑====================↑")
 	return
 }
 
@@ -170,7 +194,7 @@ func getHosDetail(db *sql.DB, docId string, hosCode string, depId string) (hd ho
 	return
 }
 
-func getHpvSchedule(db *sql.DB, docId string, hosCode string, depId string) (hs hpvScheduleResp, err error) {
+func getHpvSchedule(db *sql.DB, docId string, hosCode string, depId string) (hs hpvScheduleResp, m mailInfo, str string, err error) {
 	client := resty.New()
 	resp, err := client.R().
 		SetHeaders(map[string]string{
@@ -216,11 +240,33 @@ func getHpvSchedule(db *sql.DB, docId string, hosCode string, depId string) (hs 
 		}
 		rows.Close()
 
-		fmt.Printf("%v\t%v\t%v\t%v\t%v\t%v\n", d.SchDate, d.CateName, docName, hosName, d.SrcMax, d.SrcNum)
+		str = fmt.Sprintf("%v\t%v\t%v\t%v\t%v\t%v", d.SchDate, d.CateName, docName, hosName, d.SrcMax, d.SrcNum)
+		fmt.Println(str)
 
-		if d.SrcNum == 0 && strings.Contains(hosName, KeyWord) {
-			// Todo: Send Email
+		m = mailInfo{d.SchDate, d.CateName, docName, hosName, d.SrcMax, d.SrcNum}
 
+		if d.SrcNum > 0 && strings.Contains(hosName, KeyWord) {
+			fmt.Println("====================")
+			fmt.Println(str)
+			fmt.Println("====================")
+
+			// Send Email
+			if IsSending {
+				e := email.NewEmail()
+				e.From = EmailUser
+				e.To = []string{EmailTo1}
+				if EmailTo2 != "" {
+					e.To = append(e.To, EmailTo2)
+				}
+				e.Subject = "[重要]滇医通HPV疫苗余量提示"
+				e.Text = []byte(fmt.Sprintf("时间：%v\t%v\n地点：%v\n项目：%v\n计划：%v\n剩余：%v", d.SchDate, d.CateName, docName, hosName, d.SrcMax, d.SrcNum))
+				err = e.Send("smtp.88.com:25", smtp.PlainAuth("", EmailUser, EmailPass, "smtp.88.com"))
+				if err != nil {
+					log.Fatalln(err.Error())
+				}
+			}
+
+			// Appointment
 			if IsAppointment {
 				appointmentHpv()
 			}
@@ -231,6 +277,7 @@ func getHpvSchedule(db *sql.DB, docId string, hosCode string, depId string) (hs 
 }
 
 func appointmentHpv() {
+	// Todo
 	client := resty.New()
 	resp, err := client.R().
 		SetHeaders(map[string]string{
