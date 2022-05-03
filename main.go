@@ -15,8 +15,9 @@ import (
 )
 
 const (
-	DytApiHost    = "https://dytapi.ynhdkc.com/"
-	KeyWord       = "九价"
+	DytApiHost = "https://dytapi.ynhdkc.com/"
+	KeyWord    = "九价"
+
 	XUuid         = ""
 	Authorization = ""
 	EmailUser     = ""
@@ -118,6 +119,7 @@ func main() {
 		log.Fatalln(err.Error())
 	}
 
+	// All schedule info of hpv
 	var ms []mailInfo
 
 	for _, d := range h.Data {
@@ -240,30 +242,28 @@ func getHpvSchedule(db *sql.DB, docId string, hosCode string, depId string) (hs 
 		}
 		rows.Close()
 
-		str = fmt.Sprintf("%v\t%v\t%v\t%v\t%v\t%v", d.SchDate, d.CateName, docName, hosName, d.SrcMax, d.SrcNum)
-		fmt.Println(str)
-
 		m = mailInfo{d.SchDate, d.CateName, docName, hosName, d.SrcMax, d.SrcNum}
 
-		if d.SrcNum > 0 && strings.Contains(hosName, KeyWord) {
-			fmt.Println("====================")
+		str = fmt.Sprintf("%v\t%v\t%v\t%v\t%v\t%v", d.SchDate, d.CateName, docName, hosName, d.SrcMax, d.SrcNum)
+
+		if strings.Contains(hosName, KeyWord) {
 			fmt.Println(str)
-			fmt.Println("====================")
+		}
+
+		if d.SrcNum > 0 && strings.Contains(hosName, KeyWord) {
+			fmt.Println("!!!!!!!!!!!!!!!!!!!!")
+			fmt.Println(str)
+			fmt.Println("!!!!!!!!!!!!!!!!!!!!")
 
 			// Send Email
 			if IsSending {
-				e := email.NewEmail()
-				e.From = EmailUser
-				e.To = []string{EmailTo1}
-				if EmailTo2 != "" {
-					e.To = append(e.To, EmailTo2)
-				}
-				e.Subject = "[重要]滇医通HPV疫苗余量提示"
-				e.Text = []byte(fmt.Sprintf("时间：%v\t%v\n地点：%v\n项目：%v\n计划：%v\n剩余：%v", d.SchDate, d.CateName, docName, hosName, d.SrcMax, d.SrcNum))
-				err = e.Send("smtp.88.com:25", smtp.PlainAuth("", EmailUser, EmailPass, "smtp.88.com"))
+				err = sendEmail("[重要]滇医通HPV疫苗余量提示",
+					fmt.Sprintf("时间：%v\t%v\n地点：%v\n项目：%v\n计划：%v\n剩余：%v", d.SchDate, d.CateName, docName, hosName, d.SrcMax, d.SrcNum),
+				)
 				if err != nil {
-					log.Fatalln(err.Error())
+					return
 				}
+				log.Println("Sending Successfully")
 			}
 
 			// Appointment
@@ -297,4 +297,22 @@ func appointmentHpv() {
 	}
 	respString := resp.String()
 	fmt.Println(respString)
+}
+
+func sendEmail(subject string, text string) (err error) {
+	e := email.NewEmail()
+	e.From = EmailUser
+	e.To = []string{EmailTo1}
+	if EmailTo2 != "" {
+		e.To = append(e.To, EmailTo2)
+	}
+	e.Subject = subject
+	e.Text = []byte(text)
+	err = e.Send("smtp.88.com:25", smtp.PlainAuth("", EmailUser, EmailPass, "smtp.88.com"))
+
+	if err != nil {
+		return
+	}
+
+	return
 }
