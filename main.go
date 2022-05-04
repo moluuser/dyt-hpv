@@ -4,10 +4,10 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/smtp"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/go-resty/resty/v2"
 	"github.com/jordan-wright/email"
@@ -20,15 +20,21 @@ const (
 
 	XUuid         = ""
 	Authorization = ""
-	EmailUser     = ""
-	EmailPass     = ""
-	EmailTo1      = ""
-	EmailTo2      = ""
+	PatId         = ""
+	UserId        = ""
 
-	IsAppointment = false
+	EmailUser = ""
+	EmailPass = ""
+	EmailTo1  = ""
+	EmailTo2  = ""
+
+	IsAppointment = true
 	IsSending     = true
 
-	IsDebug = true
+	AppointCount = 5
+	AppointSleep = 500
+
+	IsDebug = false
 )
 
 // Response json of hospital list
@@ -139,19 +145,21 @@ type appointBody struct {
 
 func main() {
 	if !IsDebug {
-		// Main
+		// Release
 
-		log.Println("↓====================↓")
+		fmt.Printf("↓==========%v==========↓\n", time.Now().Format("2006-01-02 15:04:05"))
 		// Initialize DB to storage HosDetail
 		db, err := sql.Open("sqlite3", "file:hpv.db?mode=memory")
-		_, err = db.Exec("CREATE TABLE hos_detail(hos_name VARCHAR(1024), doc_name VARCHAR(1024), doc_good VARCHAR(1024), hos_id VARCHAR(32), doc_id VARCHAR(32), dep_id VARCHAR(32))")
+		_, err = db.Exec("CREATE TABLE hos_detail(hos_name VARCHAR(1024), doc_name VARCHAR(1024), doc_good VARCHAR(1024), hos_id VARCHAR(32), doc_id VARCHAR(32), dep_id VARCHAR(32), dep_name VARCHAR(1024))")
 		if err != nil {
+			fmt.Println(err.Error())
 			panic(err)
 		}
 
 		h, err := getHosList()
 		if err != nil {
-			log.Fatalln(err.Error())
+			fmt.Println(err.Error())
+			panic(err)
 		}
 
 		// All schedule info of hpv
@@ -168,13 +176,14 @@ func main() {
 				ms = append(ms, m)
 
 				if err != nil {
-					log.Fatalln(err.Error())
+					fmt.Println(err.Error())
+					panic(err)
 				}
 			}
 		}
 
 		db.Close()
-		log.Println("↑====================↑")
+		fmt.Printf("↑==========%v==========↑\n", time.Now().Format("2006-01-02 15:04:05"))
 	} else {
 		// Debug
 
@@ -227,7 +236,7 @@ func getHosDetail(db *sql.DB, docId string, hosCode string, depId string) (hd ho
 		return
 	}
 
-	_, err = db.Exec(fmt.Sprintf("INSERT INTO hos_detail VALUES('%v', '%v', '%v', '%v', '%v', '%v')", hd.Data.HosName, hd.Data.DocName, hd.Data.DocGood, hd.Data.HosId, hd.Data.DocId, hd.Data.DepId))
+	_, err = db.Exec(fmt.Sprintf("INSERT INTO hos_detail VALUES('%v', '%v', '%v', '%v', '%v', '%v', '%v')", hd.Data.HosName, hd.Data.DocName, hd.Data.DocGood, hd.Data.HosId, hd.Data.DocId, hd.Data.DepId, hd.Data.DepName))
 	if err != nil {
 		panic(err)
 	}
@@ -273,9 +282,10 @@ func getHpvSchedule(db *sql.DB, docId string, hosCode string, depId string) (hs 
 			hosId   string
 			docId   string
 			depId   string
+			depName string
 		)
 		for rows.Next() {
-			err := rows.Scan(&docName, &hosName, &docGood, &hosId, &docId, &depId)
+			err := rows.Scan(&docName, &hosName, &docGood, &hosId, &docId, &depId, &depName)
 			if err != nil {
 				panic(err)
 			}
@@ -287,28 +297,82 @@ func getHpvSchedule(db *sql.DB, docId string, hosCode string, depId string) (hs 
 		str = fmt.Sprintf("%v\t%v\t%v\t%v\t%v\t%v", d.SchDate, d.CateName, docName, hosName, d.SrcMax, d.SrcNum)
 
 		if strings.Contains(hosName, KeyWord) {
+			// Log
 			fmt.Println(str)
 		}
 
 		if d.SrcNum > 0 && strings.Contains(hosName, KeyWord) {
-			fmt.Println("!!!!!!!!!!!!!!!!!!!!")
-			fmt.Println(str)
-			fmt.Println("!!!!!!!!!!!!!!!!!!!!")
-
 			// Send Email
 			if IsSending {
-				err = sendEmail("[重要]滇医通HPV疫苗余量提示",
+				err = sendEmail("[滇医通]HPV疫苗余量提示",
 					fmt.Sprintf("时间：%v\t%v\n地点：%v\n项目：%v\n计划：%v\n剩余：%v", d.SchDate, d.CateName, docName, hosName, d.SrcMax, d.SrcNum),
+				)
+				if err != nil {
+					// return
+				}
+				fmt.Println("Sending Successfully")
+			}
+
+			// Appointment
+			appointCount := AppointCount
+
+		DoAppoint:
+			if IsAppointment {
+				fmt.Println("DoAppoint...")
+
+				appointCount--
+				var aResp appointResp
+				aResp, err = appointHpv(hosCode, depId, docId, PatId, UserId, strconv.Itoa(d.ScheduleId), "",
+					docName, hosName, depName, d.SchDate, d.TimeType,
 				)
 				if err != nil {
 					return
 				}
-				log.Println("Sending Successfully")
-			}
 
-			// Appointment
-			if IsAppointment {
-				// appointHpv()
+				aRespMsg := aResp.Msg
+
+				fmt.Println("!!!!!!!!!!!!!!!!!!!!")
+				fmt.Println(aResp)
+				fmt.Println("!!!!!!!!!!!!!!!!!!!!")
+
+				if strings.Contains(aRespMsg, "成功") {
+					// Success
+					if IsSending {
+						err = sendEmail("[滇医通]HPV自动预约成功",
+							fmt.Sprintf("时间：%v\t%v\n地点：%v\n项目：%v\n计划：%v\n剩余：%v", d.SchDate, d.CateName, docName, hosName, d.SrcMax, d.SrcNum),
+						)
+						if err != nil {
+							// return
+						}
+						fmt.Println("Sending Successfully")
+					}
+					return
+				} else if strings.Contains(aRespMsg, "失败") {
+					// Reappoint
+					if appointCount > 0 {
+						time.Sleep(AppointSleep * time.Millisecond)
+						goto DoAppoint
+					} else {
+						return
+					}
+				} else {
+					// Sending abnormal message
+					err = sendEmail("[滇医通]结果返回异常",
+						fmt.Sprintf("%v", aRespMsg),
+					)
+					if err != nil {
+						// return
+					}
+					fmt.Println("Sending Successfully")
+
+					// Reappoint
+					if appointCount > 0 {
+						time.Sleep(AppointSleep * time.Millisecond)
+						goto DoAppoint
+					} else {
+						return
+					}
+				}
 			}
 		}
 	}
@@ -368,7 +432,7 @@ func appointHpv(
 			"User-Agent":      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) MicroMessenger/6.8.0(0x16080000) MacWechat/3.4(0x13040010) MiniProgramEnv/Mac MiniProgram",
 			"Referer":         "https://appv2.ynhdkc.com/",
 			"Accept-Language": "zh-CN,zh-Hans;q=0.9",
-			"Content-Type":    "text/plain",
+			"Content-Type":    "application/json",
 
 			"x-uuid":        XUuid,
 			"Authorization": Authorization,
@@ -395,8 +459,9 @@ func appointHpv(
 		return
 	}
 
-	fmt.Println(postBody)
-	fmt.Println(respString)
+	// fmt.Println(postBody)
+	// fmt.Println(respString)
+
 	return
 }
 
