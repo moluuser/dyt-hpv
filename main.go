@@ -32,9 +32,11 @@ const (
 	IsSending     = true
 
 	AppointCount = 5
-	AppointSleep = 500
+	AppointSleep = 200
 
-	IsDebug = false
+	IsLoop = true
+
+	IsDebug = true
 )
 
 // Response json of hospital list
@@ -147,6 +149,8 @@ func main() {
 	if !IsDebug {
 		// Release
 
+		// //////////START//////////
+
 		fmt.Printf("↓==========%v==========↓\n", time.Now().Format("2006-01-02 15:04:05"))
 		// Initialize DB to storage HosDetail
 		db, err := sql.Open("sqlite3", "file:hpv.db?mode=memory")
@@ -184,9 +188,66 @@ func main() {
 
 		db.Close()
 		fmt.Printf("↑==========%v==========↑\n", time.Now().Format("2006-01-02 15:04:05"))
+
+		// //////////END//////////
 	} else {
 		// Debug
 
+		// aResp, err := appointHpv("872003", "752", "2713", "21238103", "3257604", "1316784", "",
+		// 	"二价宫颈癌疫苗(国产)", "关上街道社区卫生服务中心（疫苗）", "成人疫苗预约", "2022-05-10", "2",
+		// )
+		// if err != nil {
+		// 	fmt.Println(err.Error())
+		// 	panic(err)
+		// }
+		// fmt.Println(aResp.Msg)
+
+		// Loop
+		for IsLoop {
+			// //////////START//////////
+
+			fmt.Printf("↓==========%v==========↓\n", time.Now().Format("2006-01-02 15:04:05"))
+			// Initialize DB to storage HosDetail
+			db, err := sql.Open("sqlite3", "file:hpv.db?mode=memory")
+			_, err = db.Exec("CREATE TABLE hos_detail(hos_name VARCHAR(1024), doc_name VARCHAR(1024), doc_good VARCHAR(1024), hos_id VARCHAR(32), doc_id VARCHAR(32), dep_id VARCHAR(32), dep_name VARCHAR(1024))")
+			if err != nil {
+				fmt.Println(err.Error())
+				panic(err)
+			}
+
+			h, err := getHosList()
+			if err != nil {
+				fmt.Println(err.Error())
+				panic(err)
+			}
+
+			// All schedule info of hpv
+			var ms []mailInfo
+
+			for _, d := range h.Data {
+				for _, doctor := range d.Doctor {
+					// Catch all hpv programme
+					_, err = getHosDetail(db, strconv.Itoa(doctor.DocId), strconv.Itoa(d.HosCode), strconv.Itoa(doctor.DepId))
+
+					// Catch hpv remaining
+					var m mailInfo
+					_, m, _, err = getHpvSchedule(db, strconv.Itoa(doctor.DocId), strconv.Itoa(d.HosCode), strconv.Itoa(doctor.DepId))
+					ms = append(ms, m)
+
+					if err != nil {
+						fmt.Println(err.Error())
+						panic(err)
+					}
+				}
+			}
+
+			db.Close()
+			fmt.Printf("↑==========%v==========↑\n", time.Now().Format("2006-01-02 15:04:05"))
+
+			// time.Sleep(AppointSleep * time.Millisecond)
+
+			// //////////END//////////
+		}
 	}
 
 	return
