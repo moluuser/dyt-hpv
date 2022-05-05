@@ -317,7 +317,7 @@ func getHpvSchedule(db *sql.DB, docId string, hosCode string, depId string) (hs 
 			depName string
 		)
 		for rows.Next() {
-			err := rows.Scan(&docName, &hosName, &docGood, &hosId, &docId, &depId, &depName)
+			err = rows.Scan(&docName, &hosName, &docGood, &hosId, &docId, &depId, &depName)
 			if err != nil {
 				return
 			}
