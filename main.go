@@ -29,7 +29,7 @@ const (
 	EmailTo2  = ""
 
 	IsAppointment = true
-	IsSending     = true
+	IsSending     = false
 
 	// AppointCount Number of retries after a failed appointment
 	AppointCount = 5
@@ -346,6 +346,8 @@ func getHpvSchedule(db *sql.DB, docId string, hosCode string, depId string) (hs 
 				}
 			}
 
+			fmt.Println("Remaining...")
+
 			// Appointment
 			appointCount := AppointCount
 
@@ -370,6 +372,8 @@ func getHpvSchedule(db *sql.DB, docId string, hosCode string, depId string) (hs 
 
 				if strings.Contains(aRespMsg, "成功") {
 					// Success
+					fmt.Println("Appoint Successfully")
+
 					if IsSending {
 						err := sendEmail("[滇医通]HPV自动预约成功",
 							fmt.Sprintf("时间：%v\t%v\n地点：%v\n项目：%v\n计划：%v\n剩余：%v", d.SchDate, d.CateName, docName, hosName, d.SrcMax, d.SrcNum),
@@ -380,9 +384,14 @@ func getHpvSchedule(db *sql.DB, docId string, hosCode string, depId string) (hs 
 							fmt.Println("Sending Successfully")
 						}
 					}
+
 					return
 				} else if strings.Contains(aRespMsg, "失败") {
+					fmt.Println("Appoint Unsuccessfully")
+
 					// Reappoint
+
+					fmt.Println("Reappoint...")
 					if appointCount > 0 {
 						time.Sleep(AppointSleep * time.Millisecond)
 						goto DoAppoint
@@ -391,6 +400,8 @@ func getHpvSchedule(db *sql.DB, docId string, hosCode string, depId string) (hs 
 					}
 				} else {
 					// Sending abnormal message
+					fmt.Println("Response Msg Error: " + aRespMsg)
+
 					if IsSending {
 						err := sendEmail("[滇医通]结果返回异常",
 							fmt.Sprintf("%v", aRespMsg),
@@ -403,6 +414,7 @@ func getHpvSchedule(db *sql.DB, docId string, hosCode string, depId string) (hs 
 					}
 
 					// Reappoint
+					fmt.Println("Reappoint...")
 					if appointCount > 0 {
 						time.Sleep(AppointSleep * time.Millisecond)
 						goto DoAppoint
@@ -512,6 +524,7 @@ func sendEmail(subject string, text string) (err error) {
 	}
 	e.Subject = subject
 	e.Text = []byte(text)
+	// 25 port is blocked on Aliyun
 	err = e.Send("smtp.88.com:25", smtp.PlainAuth("", EmailUser, EmailPass, "smtp.88.com"))
 
 	if err != nil {
