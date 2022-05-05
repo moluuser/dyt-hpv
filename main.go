@@ -36,32 +36,32 @@ const (
 
 	IsLoop = true
 
-	IsDebug = true
+	IsDebug = false
 )
 
 // Response json of hospital list
 type hosResp struct {
-	Code int    `json:"code"`
+	Code int64  `json:"code"`
 	Msg  string `json:"msg"`
 	Data []struct {
 		HosLogo    string `json:"hos_logo"`
 		HosName    string `json:"hos_name"`
 		HosAddress string `json:"hos_address"`
 		HosId      string `json:"hos_id"`
-		Status     int    `json:"status"`
+		Status     int64  `json:"status"`
 		Doctor     []struct {
-			DepId int `json:"dep_id"`
-			DocId int `json:"doc_id"`
+			DepId int64 `json:"dep_id"`
+			DocId int64 `json:"doc_id"`
 		} `json:"doctor"`
-		HosCode  int         `json:"hos_code"`
+		HosCode  int64       `json:"hos_code"`
 		HosCode2 interface{} `json:"hos_code2"`
-		Sort     int         `json:"sort"`
+		Sort     int64       `json:"sort"`
 	} `json:"data"`
 }
 
 // Response json of hospital detail list
 type hosDetailResp struct {
-	Code int    `json:"code"`
+	Code int64  `json:"code"`
 	Msg  string `json:"msg"`
 	Data struct {
 		ClassList       []interface{} `json:"class_list"`
@@ -74,35 +74,35 @@ type hosDetailResp struct {
 		DocName         string        `json:"doc_name"`
 		HosId           string        `json:"hos_id"`
 		HosName         string        `json:"hos_name"`
-		HospitalType    int           `json:"hospital_type"`
-		HosType         int           `json:"hos_type"`
-		IsPage          int           `json:"is_page"`
+		HospitalType    int64         `json:"hospital_type"`
+		HosType         int64         `json:"hos_type"`
+		IsPage          int64         `json:"is_page"`
 		LevelName       string        `json:"level_name"`
-		ReservationType int           `json:"reservation_type"`
+		ReservationType int64         `json:"reservation_type"`
 		HospitalRule    string        `json:"hospital_rule"`
-		IsDatepart      int           `json:"is_datepart"`
-		Favorite        int           `json:"favorite"`
+		IsDatepart      int64         `json:"is_datepart"`
+		Favorite        int64         `json:"favorite"`
 		StopInfo        string        `json:"stop_info"`
-		IsInnerSystem   int           `json:"is_inner_system"`
+		IsInnerSystem   int64         `json:"is_inner_system"`
 	} `json:"data"`
 }
 
 type hpvScheduleResp struct {
-	Code int    `json:"code"`
+	Code int64  `json:"code"`
 	Msg  string `json:"msg"`
 	Data []struct {
-		ScheduleId int    `json:"schedule_id"`
+		ScheduleId int64  `json:"schedule_id"`
 		TimeType   string `json:"time_type"`
 		SchDate    string `json:"sch_date"`
-		SrcMax     int    `json:"src_max"`
-		SrcNum     int    `json:"src_num"`
+		SrcMax     int64  `json:"src_max"`
+		SrcNum     int64  `json:"src_num"`
 		CateName   string `json:"cate_name"`
-		Ghf        int    `json:"ghf"`
-		Zlf        int    `json:"zlf"`
-		Zjf        int    `json:"zjf"`
-		Amt        int    `json:"amt"`
+		Ghf        int64  `json:"ghf"`
+		Zlf        int64  `json:"zlf"`
+		Zjf        int64  `json:"zjf"`
+		Amt        int64  `json:"amt"`
 		DocId      string `json:"doc_id"`
-		IsDatepart int    `json:"is_datepart"`
+		IsDatepart int64  `json:"is_datepart"`
 	} `json:"data"`
 }
 
@@ -111,12 +111,12 @@ type mailInfo struct {
 	CateName string
 	docName  string
 	hosName  string
-	SrcMax   int
-	SrcNum   int
+	SrcMax   int64
+	SrcNum   int64
 }
 
 type appointResp struct {
-	Code int           `json:"code"`
+	Code int64         `json:"code"`
 	Msg  string        `json:"msg"`
 	Data []interface{} `json:"data"`
 }
@@ -129,18 +129,18 @@ type appointBody struct {
 	LevelName   string `json:"level_name"`
 	DepId       string `json:"dep_id"`
 	DocId       string `json:"doc_id"`
-	PatId       int    `json:"pat_id"`
-	ScheduleId  int    `json:"schedule_id"`
+	PatId       int64  `json:"pat_id"`
+	ScheduleId  int64  `json:"schedule_id"`
 	JzCard      string `json:"jz_card"`
 	SchDate     string `json:"sch_date"`
 	TimeType    string `json:"time_type"`
 	Info        string `json:"info"`
-	Ghf         int    `json:"ghf"`
-	Zlf         int    `json:"zlf"`
-	Zjf         int    `json:"zjf"`
-	JzStartTime int    `json:"jz_start_time"`
-	Amt         int    `json:"amt"`
-	JzCardType  int    `json:"jz_card_type"`
+	Ghf         int64  `json:"ghf"`
+	Zlf         int64  `json:"zlf"`
+	Zjf         int64  `json:"zjf"`
+	JzStartTime int64  `json:"jz_start_time"`
+	Amt         int64  `json:"amt"`
+	JzCardType  int64  `json:"jz_card_type"`
 	QueueSnId   string `json:"queue_sn_id"`
 	WechatLogin string `json:"wechat_login"`
 }
@@ -172,16 +172,15 @@ func main() {
 		for _, d := range h.Data {
 			for _, doctor := range d.Doctor {
 				// Catch all hpv programme
-				_, err = getHosDetail(db, strconv.Itoa(doctor.DocId), strconv.Itoa(d.HosCode), strconv.Itoa(doctor.DepId))
+				_, err = getHosDetail(db, strconv.FormatInt(doctor.DocId, 10), strconv.FormatInt(d.HosCode, 10), strconv.FormatInt(doctor.DepId, 10))
 
 				// Catch hpv remaining
 				var m mailInfo
-				_, m, _, err = getHpvSchedule(db, strconv.Itoa(doctor.DocId), strconv.Itoa(d.HosCode), strconv.Itoa(doctor.DepId))
+				_, m, _, err = getHpvSchedule(db, strconv.FormatInt(doctor.DocId, 10), strconv.FormatInt(d.HosCode, 10), strconv.FormatInt(doctor.DepId, 10))
 				ms = append(ms, m)
 
 				if err != nil {
 					fmt.Println(err.Error())
-					panic(err)
 				}
 			}
 		}
@@ -227,24 +226,21 @@ func main() {
 			for _, d := range h.Data {
 				for _, doctor := range d.Doctor {
 					// Catch all hpv programme
-					_, err = getHosDetail(db, strconv.Itoa(doctor.DocId), strconv.Itoa(d.HosCode), strconv.Itoa(doctor.DepId))
+					_, err = getHosDetail(db, strconv.FormatInt(doctor.DocId, 10), strconv.FormatInt(d.HosCode, 10), strconv.FormatInt(doctor.DepId, 10))
 
 					// Catch hpv remaining
 					var m mailInfo
-					_, m, _, err = getHpvSchedule(db, strconv.Itoa(doctor.DocId), strconv.Itoa(d.HosCode), strconv.Itoa(doctor.DepId))
+					_, m, _, err = getHpvSchedule(db, strconv.FormatInt(doctor.DocId, 10), strconv.FormatInt(d.HosCode, 10), strconv.FormatInt(doctor.DepId, 10))
 					ms = append(ms, m)
 
 					if err != nil {
 						fmt.Println(err.Error())
-						panic(err)
 					}
 				}
 			}
 
 			db.Close()
 			fmt.Printf("↑==========%v==========↑\n", time.Now().Format("2006-01-02 15:04:05"))
-
-			// time.Sleep(AppointSleep * time.Millisecond)
 
 			// //////////END//////////
 		}
@@ -369,9 +365,10 @@ func getHpvSchedule(db *sql.DB, docId string, hosCode string, depId string) (hs 
 					fmt.Sprintf("时间：%v\t%v\n地点：%v\n项目：%v\n计划：%v\n剩余：%v", d.SchDate, d.CateName, docName, hosName, d.SrcMax, d.SrcNum),
 				)
 				if err != nil {
-					// return
+					fmt.Println(err.Error())
+				} else {
+					fmt.Println("Sending Successfully")
 				}
-				fmt.Println("Sending Successfully")
 			}
 
 			// Appointment
@@ -383,7 +380,7 @@ func getHpvSchedule(db *sql.DB, docId string, hosCode string, depId string) (hs 
 
 				appointCount--
 				var aResp appointResp
-				aResp, err = appointHpv(hosCode, depId, docId, PatId, UserId, strconv.Itoa(d.ScheduleId), "",
+				aResp, err = appointHpv(hosCode, depId, docId, PatId, UserId, strconv.FormatInt(d.ScheduleId, 10), "",
 					docName, hosName, depName, d.SchDate, d.TimeType,
 				)
 				if err != nil {
@@ -403,9 +400,10 @@ func getHpvSchedule(db *sql.DB, docId string, hosCode string, depId string) (hs 
 							fmt.Sprintf("时间：%v\t%v\n地点：%v\n项目：%v\n计划：%v\n剩余：%v", d.SchDate, d.CateName, docName, hosName, d.SrcMax, d.SrcNum),
 						)
 						if err != nil {
-							// return
+							fmt.Println(err.Error())
+						} else {
+							fmt.Println("Sending Successfully")
 						}
-						fmt.Println("Sending Successfully")
 					}
 					return
 				} else if strings.Contains(aRespMsg, "失败") {
@@ -418,13 +416,16 @@ func getHpvSchedule(db *sql.DB, docId string, hosCode string, depId string) (hs 
 					}
 				} else {
 					// Sending abnormal message
-					err = sendEmail("[滇医通]结果返回异常",
-						fmt.Sprintf("%v", aRespMsg),
-					)
-					if err != nil {
-						// return
+					if IsSending {
+						err = sendEmail("[滇医通]结果返回异常",
+							fmt.Sprintf("%v", aRespMsg),
+						)
+						if err != nil {
+							fmt.Println(err.Error())
+						} else {
+							fmt.Println("Sending Successfully")
+						}
 					}
-					fmt.Println("Sending Successfully")
 
 					// Reappoint
 					if appointCount > 0 {
@@ -517,6 +518,7 @@ func appointHpv(
 	respString := resp.String()
 	err = json.Unmarshal([]byte(respString), &aResp)
 	if err != nil {
+		fmt.Println(err.Error())
 		return
 	}
 
