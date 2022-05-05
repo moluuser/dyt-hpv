@@ -34,6 +34,8 @@ const (
 	AppointCount = 5
 	AppointSleep = 200
 
+	ErrorCount = 5
+
 	IsLoop = true
 
 	IsDebug = false
@@ -148,22 +150,34 @@ type appointBody struct {
 func main() {
 	if !IsDebug {
 		// Release
+		errorCount := ErrorCount
 
+	Release:
 		// //////////START//////////
-
 		fmt.Printf("↓==========%v==========↓\n", time.Now().Format("2006-01-02 15:04:05"))
 		// Initialize DB to storage HosDetail
 		db, err := sql.Open("sqlite3", "file:hpv.db?mode=memory")
 		_, err = db.Exec("CREATE TABLE hos_detail(hos_name VARCHAR(1024), doc_name VARCHAR(1024), doc_good VARCHAR(1024), hos_id VARCHAR(32), doc_id VARCHAR(32), dep_id VARCHAR(32), dep_name VARCHAR(1024))")
+
 		if err != nil {
+			errorCount--
 			fmt.Println(err.Error())
-			panic(err)
+			if errorCount > 0 {
+				goto Release
+			} else {
+				panic(err)
+			}
 		}
 
 		h, err := getHosList()
 		if err != nil {
+			errorCount--
 			fmt.Println(err.Error())
-			panic(err)
+			if errorCount > 0 {
+				goto Release
+			} else {
+				panic(err)
+			}
 		}
 
 		// All schedule info of hpv
@@ -174,6 +188,11 @@ func main() {
 				// Catch all hpv programme
 				_, err = getHosDetail(db, strconv.FormatInt(doctor.DocId, 10), strconv.FormatInt(d.HosCode, 10), strconv.FormatInt(doctor.DepId, 10))
 
+				if err != nil {
+					fmt.Println(err.Error())
+					continue
+				}
+
 				// Catch hpv remaining
 				var m mailInfo
 				_, m, _, err = getHpvSchedule(db, strconv.FormatInt(doctor.DocId, 10), strconv.FormatInt(d.HosCode, 10), strconv.FormatInt(doctor.DepId, 10))
@@ -181,6 +200,7 @@ func main() {
 
 				if err != nil {
 					fmt.Println(err.Error())
+					continue
 				}
 			}
 		}
@@ -195,54 +215,10 @@ func main() {
 		// aResp, err := appointHpv("872003", "752", "2713", "21238103", "3257604", "1316784", "",
 		// 	"二价宫颈癌疫苗(国产)", "关上街道社区卫生服务中心（疫苗）", "成人疫苗预约", "2022-05-10", "2",
 		// )
-		// if err != nil {
-		// 	fmt.Println(err.Error())
-		// 	panic(err)
-		// }
-		// fmt.Println(aResp.Msg)
 
 		// Loop
 		for IsLoop {
-			// //////////START//////////
 
-			fmt.Printf("↓==========%v==========↓\n", time.Now().Format("2006-01-02 15:04:05"))
-			// Initialize DB to storage HosDetail
-			db, err := sql.Open("sqlite3", "file:hpv.db?mode=memory")
-			_, err = db.Exec("CREATE TABLE hos_detail(hos_name VARCHAR(1024), doc_name VARCHAR(1024), doc_good VARCHAR(1024), hos_id VARCHAR(32), doc_id VARCHAR(32), dep_id VARCHAR(32), dep_name VARCHAR(1024))")
-			if err != nil {
-				fmt.Println(err.Error())
-				panic(err)
-			}
-
-			h, err := getHosList()
-			if err != nil {
-				fmt.Println(err.Error())
-				panic(err)
-			}
-
-			// All schedule info of hpv
-			var ms []mailInfo
-
-			for _, d := range h.Data {
-				for _, doctor := range d.Doctor {
-					// Catch all hpv programme
-					_, err = getHosDetail(db, strconv.FormatInt(doctor.DocId, 10), strconv.FormatInt(d.HosCode, 10), strconv.FormatInt(doctor.DepId, 10))
-
-					// Catch hpv remaining
-					var m mailInfo
-					_, m, _, err = getHpvSchedule(db, strconv.FormatInt(doctor.DocId, 10), strconv.FormatInt(d.HosCode, 10), strconv.FormatInt(doctor.DepId, 10))
-					ms = append(ms, m)
-
-					if err != nil {
-						fmt.Println(err.Error())
-					}
-				}
-			}
-
-			db.Close()
-			fmt.Printf("↑==========%v==========↑\n", time.Now().Format("2006-01-02 15:04:05"))
-
-			// //////////END//////////
 		}
 	}
 
@@ -295,7 +271,7 @@ func getHosDetail(db *sql.DB, docId string, hosCode string, depId string) (hd ho
 
 	_, err = db.Exec(fmt.Sprintf("INSERT INTO hos_detail VALUES('%v', '%v', '%v', '%v', '%v', '%v', '%v')", hd.Data.HosName, hd.Data.DocName, hd.Data.DocGood, hd.Data.HosId, hd.Data.DocId, hd.Data.DepId, hd.Data.DepName))
 	if err != nil {
-		panic(err)
+		return
 	}
 
 	// fmt.Printf("%v:\t%v\n", hd.Data.HosName, hd.Data.DocName)
@@ -344,7 +320,7 @@ func getHpvSchedule(db *sql.DB, docId string, hosCode string, depId string) (hs 
 		for rows.Next() {
 			err := rows.Scan(&docName, &hosName, &docGood, &hosId, &docId, &depId, &depName)
 			if err != nil {
-				panic(err)
+				return
 			}
 		}
 		rows.Close()
@@ -361,7 +337,7 @@ func getHpvSchedule(db *sql.DB, docId string, hosCode string, depId string) (hs 
 		if d.SrcNum > 0 && strings.Contains(hosName, KeyWord) {
 			// Send Email
 			if IsSending {
-				err = sendEmail("[滇医通]HPV疫苗余量提示",
+				err := sendEmail("[滇医通]HPV疫苗余量提示",
 					fmt.Sprintf("时间：%v\t%v\n地点：%v\n项目：%v\n计划：%v\n剩余：%v", d.SchDate, d.CateName, docName, hosName, d.SrcMax, d.SrcNum),
 				)
 				if err != nil {
@@ -396,7 +372,7 @@ func getHpvSchedule(db *sql.DB, docId string, hosCode string, depId string) (hs 
 				if strings.Contains(aRespMsg, "成功") {
 					// Success
 					if IsSending {
-						err = sendEmail("[滇医通]HPV自动预约成功",
+						err := sendEmail("[滇医通]HPV自动预约成功",
 							fmt.Sprintf("时间：%v\t%v\n地点：%v\n项目：%v\n计划：%v\n剩余：%v", d.SchDate, d.CateName, docName, hosName, d.SrcMax, d.SrcNum),
 						)
 						if err != nil {
@@ -417,7 +393,7 @@ func getHpvSchedule(db *sql.DB, docId string, hosCode string, depId string) (hs 
 				} else {
 					// Sending abnormal message
 					if IsSending {
-						err = sendEmail("[滇医通]结果返回异常",
+						err := sendEmail("[滇医通]结果返回异常",
 							fmt.Sprintf("%v", aRespMsg),
 						)
 						if err != nil {
