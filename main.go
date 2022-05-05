@@ -31,9 +31,12 @@ const (
 	IsAppointment = true
 	IsSending     = true
 
+	// AppointCount Number of retries after a failed appointment
 	AppointCount = 5
+	// AppointSleep Delay in milliseconds after a failed appointment
 	AppointSleep = 200
 
+	// ErrorCount The program will panic when the number of errors exceeds this value
 	ErrorCount = 5
 
 	IsLoop = true
