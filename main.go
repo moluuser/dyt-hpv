@@ -398,6 +398,10 @@ func getHpvSchedule(db *sql.DB, docId string, hosCode string, depId string) (hs 
 					} else {
 						return
 					}
+				} else if strings.Contains(aRespMsg, "被抢空") {
+					// Next programme
+					fmt.Println("0 Remaining, End This Programme...")
+					return
 				} else {
 					// Sending abnormal message
 					fmt.Println("Response Msg Error: " + aRespMsg)
