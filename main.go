@@ -389,9 +389,9 @@ func getHpvSchedule(db *sql.DB, docId string, hosCode string, depId string) (hs 
 				} else if strings.Contains(aRespMsg, "失败") {
 					fmt.Println("Appoint Unsuccessfully")
 
-					// Reappoint
+					// ReAppoint
 
-					fmt.Println("Reappoint...")
+					fmt.Println("ReAppoint...")
 					if appointCount > 0 {
 						time.Sleep(AppointSleep * time.Millisecond)
 						goto DoAppoint
@@ -413,8 +413,8 @@ func getHpvSchedule(db *sql.DB, docId string, hosCode string, depId string) (hs 
 						}
 					}
 
-					// Reappoint
-					fmt.Println("Reappoint...")
+					// ReAppoint
+					fmt.Println("ReAppoint...")
 					if appointCount > 0 {
 						time.Sleep(AppointSleep * time.Millisecond)
 						goto DoAppoint
