@@ -273,7 +273,7 @@ func getHosDetail(db *sql.DB, docId string, hosCode string, depId string) (hd ho
 		return
 	}
 
-	// fmt.Printf("%v:\t%v\n", hd.Data.HosName, hd.Data.DocName)
+	fmt.Printf(time.Now().Format("2006-01-02 15:04:05")+"%v:\t%v\n", hd.Data.HosName, hd.Data.DocName)
 	return
 }
 
@@ -317,7 +317,7 @@ func getHpvSchedule(db *sql.DB, docId string, hosCode string, depId string) (hs 
 			depName string
 		)
 		for rows.Next() {
-			err = rows.Scan(&docName, &hosName, &docGood, &hosId, &docId, &depId, &depName)
+			err = rows.Scan(&hosName, &docName, &docGood, &hosId, &docId, &depId, &depName)
 			if err != nil {
 				return
 			}
@@ -328,12 +328,12 @@ func getHpvSchedule(db *sql.DB, docId string, hosCode string, depId string) (hs 
 
 		str = fmt.Sprintf("%v\t%v\t%v\t%v\t%v\t%v", d.SchDate, d.CateName, docName, hosName, d.SrcMax, d.SrcNum)
 
-		if strings.Contains(hosName, KeyWord) {
+		if strings.Contains(docName, KeyWord) {
 			// Log
 			fmt.Println(time.Now().Format("2006-01-02 15:04:05") + "+\t" + str)
 		}
 
-		if d.SrcNum > 0 && strings.Contains(hosName, KeyWord) {
+		if d.SrcNum > 0 && strings.Contains(docName, KeyWord) {
 			// Send Email
 			if IsSending {
 				err := sendEmail("[滇医通]HPV疫苗余量提示",
