@@ -330,7 +330,7 @@ func getHpvSchedule(db *sql.DB, docId string, hosCode string, depId string) (hs 
 
 		if strings.Contains(hosName, KeyWord) {
 			// Log
-			fmt.Println(str)
+			fmt.Println(time.Now().Format("2006-01-02 15:04:05") + "+\t" + str)
 		}
 
 		if d.SrcNum > 0 && strings.Contains(hosName, KeyWord) {
