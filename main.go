@@ -1,12 +1,12 @@
 package main
 
 import (
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"net/smtp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/go-resty/resty/v2"
@@ -39,7 +39,7 @@ const (
 	// ErrorCount The program will panic when the number of errors exceeds this value
 	ErrorCount = 5
 
-	IsLoop = true
+	ThreadNum = 10
 
 	IsDebug = false
 )
@@ -150,6 +150,18 @@ type appointBody struct {
 	WechatLogin string `json:"wechat_login"`
 }
 
+type swapData struct {
+	hosName string
+	docName string
+	docGood string
+	hosId   string
+	docId   string
+	depId   string
+	depName string
+}
+
+var wg sync.WaitGroup
+
 func main() {
 	if !IsDebug {
 		// Release
@@ -159,18 +171,18 @@ func main() {
 		// //////////START//////////
 		fmt.Printf("↓==========%v==========↓\n", time.Now().Format("2006-01-02 15:04:05"))
 		// Initialize DB to storage HosDetail
-		db, err := sql.Open("sqlite3", "file:hpv.db?mode=memory")
-		_, err = db.Exec("CREATE TABLE hos_detail(hos_name VARCHAR(1024), doc_name VARCHAR(1024), doc_good VARCHAR(1024), hos_id VARCHAR(32), doc_id VARCHAR(32), dep_id VARCHAR(32), dep_name VARCHAR(1024))")
-
-		if err != nil {
-			errorCount--
-			fmt.Println(err.Error())
-			if errorCount > 0 {
-				goto Release
-			} else {
-				panic(err)
-			}
-		}
+		// db, err := sql.Open("sqlite3", "file:hpv.db?mode=memory")
+		// _, err = db.Exec("CREATE TABLE hos_detail(hos_name VARCHAR(1024), doc_name VARCHAR(1024), doc_good VARCHAR(1024), hos_id VARCHAR(32), doc_id VARCHAR(32), dep_id VARCHAR(32), dep_name VARCHAR(1024))")
+		//
+		// if err != nil {
+		// 	errorCount--
+		// 	fmt.Println(err.Error())
+		// 	if errorCount > 0 {
+		// 		goto Release
+		// 	} else {
+		// 		panic(err)
+		// 	}
+		// }
 
 		h, err := getHosList()
 		if err != nil {
@@ -183,13 +195,37 @@ func main() {
 			}
 		}
 
-		// All schedule info of hpv
-		var ms []mailInfo
+		for i := 0; i < ThreadNum; i++ {
+			wg.Add(1)
+			go loopThread(h, i)
+		}
 
-		for _, d := range h.Data {
+		wg.Wait()
+
+		// db.Close()
+		fmt.Printf("↑==========%v==========↑\n", time.Now().Format("2006-01-02 15:04:05"))
+
+		// //////////END//////////
+	} else {
+		// Debug
+
+	}
+
+	return
+}
+
+func loopThread(h hosResp, num int) (err error) {
+	defer wg.Done()
+
+	for i, d := range h.Data {
+		var swaps []swapData
+
+		if i%ThreadNum == num {
 			for _, doctor := range d.Doctor {
 				// Catch all hpv programme
-				_, err = getHosDetail(db, strconv.FormatInt(doctor.DocId, 10), strconv.FormatInt(d.HosCode, 10), strconv.FormatInt(doctor.DepId, 10))
+				var swap swapData
+				swap, _, err = getHosDetail(strconv.FormatInt(doctor.DocId, 10), strconv.FormatInt(d.HosCode, 10), strconv.FormatInt(doctor.DepId, 10))
+				swaps = append(swaps, swap)
 
 				if err != nil {
 					fmt.Println(err.Error())
@@ -197,9 +233,7 @@ func main() {
 				}
 
 				// Catch hpv remaining
-				var m mailInfo
-				_, m, _, err = getHpvSchedule(db, strconv.FormatInt(doctor.DocId, 10), strconv.FormatInt(d.HosCode, 10), strconv.FormatInt(doctor.DepId, 10))
-				ms = append(ms, m)
+				_, _, err = getHpvSchedule(&swaps, strconv.FormatInt(doctor.DocId, 10), strconv.FormatInt(d.HosCode, 10), strconv.FormatInt(doctor.DepId, 10))
 
 				if err != nil {
 					fmt.Println(err.Error())
@@ -207,21 +241,8 @@ func main() {
 				}
 			}
 		}
-
-		db.Close()
-		fmt.Printf("↑==========%v==========↑\n", time.Now().Format("2006-01-02 15:04:05"))
-
-		// //////////END//////////
-	} else {
-		// Debug
-
-		// Loop
-		for IsLoop {
-
-		}
 	}
-
-	return
+	return nil
 }
 
 func getHosList() (h hosResp, err error) {
@@ -240,7 +261,7 @@ func getHosList() (h hosResp, err error) {
 	return
 }
 
-func getHosDetail(db *sql.DB, docId string, hosCode string, depId string) (hd hosDetailResp, err error) {
+func getHosDetail(docId string, hosCode string, depId string) (swap swapData, hd hosDetailResp, err error) {
 	client := resty.New()
 	resp, err := client.R().
 		SetHeaders(map[string]string{
@@ -268,16 +289,17 @@ func getHosDetail(db *sql.DB, docId string, hosCode string, depId string) (hd ho
 		return
 	}
 
-	_, err = db.Exec(fmt.Sprintf("INSERT INTO hos_detail VALUES('%v', '%v', '%v', '%v', '%v', '%v', '%v')", hd.Data.HosName, hd.Data.DocName, hd.Data.DocGood, hd.Data.HosId, hd.Data.DocId, hd.Data.DepId, hd.Data.DepName))
-	if err != nil {
-		return
-	}
+	swap = swapData{hd.Data.HosName, hd.Data.DocName, hd.Data.DocGood, hd.Data.HosId, hd.Data.DocId, hd.Data.DepId, hd.Data.DepName}
+	// _, err = db.Exec(fmt.Sprintf("INSERT INTO hos_detail VALUES('%v', '%v', '%v', '%v', '%v', '%v', '%v')", hd.Data.HosName, hd.Data.DocName, hd.Data.DocGood, hd.Data.HosId, hd.Data.DocId, hd.Data.DepId, hd.Data.DepName))
+	// if err != nil {
+	// 	return
+	// }
 
-	fmt.Printf(time.Now().Format("2006-01-02 15:04:05")+"%v:\t%v\n", hd.Data.HosName, hd.Data.DocName)
+	// fmt.Printf(time.Now().Format("2006-01-02 15:04:05")+"%v:\t%v\n", hd.Data.HosName, hd.Data.DocName)
 	return
 }
 
-func getHpvSchedule(db *sql.DB, docId string, hosCode string, depId string) (hs hpvScheduleResp, m mailInfo, str string, err error) {
+func getHpvSchedule(swaps *[]swapData, docId string, hosCode string, depId string) (hs hpvScheduleResp, str string, err error) {
 	client := resty.New()
 	resp, err := client.R().
 		SetHeaders(map[string]string{
@@ -305,26 +327,36 @@ func getHpvSchedule(db *sql.DB, docId string, hosCode string, depId string) (hs 
 	}
 
 	for _, d := range hs.Data {
-		var rows *sql.Rows
-		rows, err = db.Query(fmt.Sprintf("SELECT * FROM hos_detail WHERE doc_id = %v LIMIT 1", d.DocId))
+		// var rows *sql.Rows
+		// rows, err = db.Query(fmt.Sprintf("SELECT * FROM hos_detail WHERE doc_id = %v LIMIT 1", d.DocId))
 		var (
 			hosName string
 			docName string
-			docGood string
-			hosId   string
+			// docGood string
+			// hosId   string
 			docId   string
 			depId   string
 			depName string
 		)
-		for rows.Next() {
-			err = rows.Scan(&hosName, &docName, &docGood, &hosId, &docId, &depId, &depName)
-			if err != nil {
-				return
+		// for rows.Next() {
+		// 	err = rows.Scan(&hosName, &docName, &docGood, &hosId, &docId, &depId, &depName)
+		// 	if err != nil {
+		// 		return
+		// 	}
+		// }
+		// rows.Close()
+
+		for _, swap := range *swaps {
+			if swap.docId == d.DocId {
+				hosName = swap.hosName
+				docName = swap.docName
+				// docGood = swap.docGood
+				// hosId = swap.hosId
+				docId = swap.docId
+				depId = swap.depId
+				depName = swap.depName
 			}
 		}
-		rows.Close()
-
-		m = mailInfo{d.SchDate, d.CateName, docName, hosName, d.SrcMax, d.SrcNum}
 
 		str = fmt.Sprintf("%v\t%v\t%v\t%v\t%v\t%v", d.SchDate, d.CateName, docName, hosName, d.SrcMax, d.SrcNum)
 
