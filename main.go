@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/smtp"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -14,14 +15,17 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
-const (
-	DytApiHost = "https://dytapi.ynhdkc.com/"
-	KeyWord    = "九价"
+var (
+	XUuid         = os.Getenv("XUuid")
+	Authorization = os.Getenv("Authorization")
+	PatId         = os.Getenv("PatId")
+	UserId        = os.Getenv("UserId")
 
-	XUuid         = ""
-	Authorization = ""
-	PatId         = ""
-	UserId        = ""
+	DytApiHost = os.Getenv("DytApiHost")
+)
+
+const (
+	KeyWord = "九价"
 
 	EmailUser = ""
 	EmailPass = ""
