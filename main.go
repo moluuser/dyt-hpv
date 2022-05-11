@@ -170,19 +170,6 @@ func main() {
 	Release:
 		// //////////START//////////
 		fmt.Printf("↓==========%v==========↓\n", time.Now().Format("2006-01-02 15:04:05"))
-		// Initialize DB to storage HosDetail
-		// db, err := sql.Open("sqlite3", "file:hpv.db?mode=memory")
-		// _, err = db.Exec("CREATE TABLE hos_detail(hos_name VARCHAR(1024), doc_name VARCHAR(1024), doc_good VARCHAR(1024), hos_id VARCHAR(32), doc_id VARCHAR(32), dep_id VARCHAR(32), dep_name VARCHAR(1024))")
-		//
-		// if err != nil {
-		// 	errorCount--
-		// 	fmt.Println(err.Error())
-		// 	if errorCount > 0 {
-		// 		goto Release
-		// 	} else {
-		// 		panic(err)
-		// 	}
-		// }
 
 		h, err := getHosList()
 		if err != nil {
@@ -202,7 +189,6 @@ func main() {
 
 		wg.Wait()
 
-		// db.Close()
 		fmt.Printf("↑==========%v==========↑\n", time.Now().Format("2006-01-02 15:04:05"))
 
 		// //////////END//////////
@@ -290,10 +276,6 @@ func getHosDetail(docId string, hosCode string, depId string) (swap swapData, hd
 	}
 
 	swap = swapData{hd.Data.HosName, hd.Data.DocName, hd.Data.DocGood, hd.Data.HosId, hd.Data.DocId, hd.Data.DepId, hd.Data.DepName}
-	// _, err = db.Exec(fmt.Sprintf("INSERT INTO hos_detail VALUES('%v', '%v', '%v', '%v', '%v', '%v', '%v')", hd.Data.HosName, hd.Data.DocName, hd.Data.DocGood, hd.Data.HosId, hd.Data.DocId, hd.Data.DepId, hd.Data.DepName))
-	// if err != nil {
-	// 	return
-	// }
 
 	// fmt.Printf(time.Now().Format("2006-01-02 15:04:05")+"%v:\t%v\n", hd.Data.HosName, hd.Data.DocName)
 	return
@@ -327,8 +309,6 @@ func getHpvSchedule(swaps *[]swapData, docId string, hosCode string, depId strin
 	}
 
 	for _, d := range hs.Data {
-		// var rows *sql.Rows
-		// rows, err = db.Query(fmt.Sprintf("SELECT * FROM hos_detail WHERE doc_id = %v LIMIT 1", d.DocId))
 		var (
 			hosName string
 			docName string
@@ -338,13 +318,6 @@ func getHpvSchedule(swaps *[]swapData, docId string, hosCode string, depId strin
 			depId   string
 			depName string
 		)
-		// for rows.Next() {
-		// 	err = rows.Scan(&hosName, &docName, &docGood, &hosId, &docId, &depId, &depName)
-		// 	if err != nil {
-		// 		return
-		// 	}
-		// }
-		// rows.Close()
 
 		for _, swap := range *swaps {
 			if swap.docId == d.DocId {
@@ -544,9 +517,6 @@ func appointHpv(
 		fmt.Println(err.Error())
 		return
 	}
-
-	// fmt.Println(postBody)
-	// fmt.Println(respString)
 
 	return
 }
