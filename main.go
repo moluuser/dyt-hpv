@@ -154,6 +154,21 @@ type appointBody struct {
 	WechatLogin string `json:"wechat_login"`
 }
 
+type appointFuncParams struct {
+	hosCode    string
+	depId      string
+	docId      string
+	patId      string
+	userId     string
+	scheduleId string
+	cateName   string
+	docName    string
+	hosName    string
+	depName    string
+	schDate    string
+	timeType   string
+}
+
 type swapData struct {
 	hosName string
 	docName string
@@ -359,16 +374,29 @@ func getHpvSchedule(swaps *[]swapData, docId string, hosCode string, depId strin
 
 			// Appointment
 			appointCount := AppointCount
+			appointParams := new(appointFuncParams)
 
-		DoAppoint:
 			if IsAppointment {
-				fmt.Println("DoAppoint...")
+				appointParams = &appointFuncParams{
+					hosCode:    hosCode,
+					depId:      depId,
+					docId:      docId,
+					patId:      PatId,
+					userId:     UserId,
+					scheduleId: strconv.FormatInt(d.ScheduleId, 10),
+					cateName:   "",
+					docName:    docName,
+					hosName:    hosName,
+					depName:    depName,
+					schDate:    d.SchDate,
+					timeType:   d.TimeType,
+				}
 
+			DoAppoint:
+				fmt.Println("DoAppoint...")
 				appointCount--
 				var aResp appointResp
-				aResp, err = appointHpv(hosCode, depId, docId, PatId, UserId, strconv.FormatInt(d.ScheduleId, 10), "",
-					docName, hosName, depName, d.SchDate, d.TimeType,
-				)
+				aResp, err = appointHpv(appointParams)
 				if err != nil {
 					return
 				}
@@ -442,21 +470,7 @@ func getHpvSchedule(swaps *[]swapData, docId string, hosCode string, depId strin
 	return
 }
 
-func appointHpv(
-	hosCode string,
-	depId string,
-	docId string,
-	patId string,
-	userId string,
-	scheduleId string,
-	cateName string,
-
-	docName string,
-	hosName string,
-	depName string,
-	schDate string,
-	timeType string,
-) (aResp appointResp, err error) {
+func appointHpv(params *appointFuncParams) (aResp appointResp, err error) {
 	postBody := fmt.Sprintf(`
 {
   "doc_name": "%v",
@@ -481,7 +495,7 @@ func appointHpv(
   "queue_sn_id": "",
   "wechat_login": "dytminiapp"
 }
-`, docName, hosName, hosCode, depName, depId, docId, patId, scheduleId, schDate, timeType)
+`, params.docName, params.hosName, params.hosCode, params.depName, params.depId, params.docId, params.patId, params.scheduleId, params.schDate, params.timeType)
 
 	client := resty.New()
 	resp, err := client.R().
@@ -500,13 +514,13 @@ func appointHpv(
 			"Authorization": Authorization,
 		}).
 		SetQueryParams(map[string]string{
-			"hos_code":    hosCode,
-			"dep_id":      depId,
-			"doc_id":      docId,
-			"pat_id":      patId,
-			"user_id":     userId,
-			"schedule_id": scheduleId,
-			"cate_name":   cateName,
+			"hos_code":    params.hosCode,
+			"dep_id":      params.depId,
+			"doc_id":      params.docId,
+			"pat_id":      params.patId,
+			"user_id":     params.userId,
+			"schedule_id": params.scheduleId,
+			"cate_name":   params.cateName,
 		}).
 		SetBody(postBody).
 		Post(DytApiHost + "v1/appoint")
