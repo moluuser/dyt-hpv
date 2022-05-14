@@ -36,7 +36,7 @@ const (
 	IsSending     = false
 
 	// AppointCount Number of retries after a failed appointment
-	AppointCount = 5
+	AppointCount = 8
 	// AppointSleep Delay in milliseconds after a failed appointment
 	AppointSleep = 500
 
