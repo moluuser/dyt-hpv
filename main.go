@@ -360,7 +360,7 @@ func getHpvSchedule(swaps *[]swapData, docId string, hosCode string, depId strin
 		if d.SrcNum > 0 && strings.Contains(docName, KeyWord) {
 			// Send Email
 			if IsSending {
-				err := sendEmail("[滇医通]HPV疫苗余量提示",
+				err := sendEmail("[DYT]HPV疫苗余量提示",
 					fmt.Sprintf("时间：%v\t%v\n地点：%v\n项目：%v\n计划：%v\n剩余：%v", d.SchDate, d.CateName, docName, hosName, d.SrcMax, d.SrcNum),
 				)
 				if err != nil {
@@ -412,7 +412,7 @@ func getHpvSchedule(swaps *[]swapData, docId string, hosCode string, depId strin
 					fmt.Println("Appoint Successfully")
 
 					if IsSending {
-						err := sendEmail("[滇医通]HPV自动预约成功",
+						err := sendEmail("[DYT]HPV自动预约成功",
 							fmt.Sprintf("时间：%v\t%v\n地点：%v\n项目：%v\n计划：%v\n剩余：%v", d.SchDate, d.CateName, docName, hosName, d.SrcMax, d.SrcNum),
 						)
 						if err != nil {
@@ -444,7 +444,7 @@ func getHpvSchedule(swaps *[]swapData, docId string, hosCode string, depId strin
 					fmt.Println("Response Msg Error: " + aRespMsg)
 
 					if IsSending {
-						err := sendEmail("[滇医通]结果返回异常",
+						err := sendEmail("[DYT]结果返回异常",
 							fmt.Sprintf("%v", aRespMsg),
 						)
 						if err != nil {
