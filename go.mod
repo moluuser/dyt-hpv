@@ -1,4 +1,4 @@
-module dyt_hpv
+module dyt-hpv
 
 go 1.17
 
